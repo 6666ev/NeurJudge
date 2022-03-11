@@ -1,0 +1,5 @@
+*.json
+*.csv
+*.wiki.word
+*embeddings.txt
+logs/

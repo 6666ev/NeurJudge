@@ -13,7 +13,14 @@ from torch.autograd import Variable
 import numpy as np
 from tqdm import tqdm
 import os
-#from word2vec import toembedding
+from test import do_test
+# from word2vec import toembedding
+
+# trainset_path = "data/cail/processed/train.json"
+trainset_path = "data/laic/train.json"
+model_save_dir = "logs/laic/"
+embeddings = np.loadtxt("data/word_embedding/laic_embeddings.txt")
+batch_size = 128
 
 random.seed(42)
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -22,15 +29,16 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
 logger = logging.getLogger(__name__)
 
 #embedding = toembedding()
-embedding = 1
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# embedding = 1
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = NeurJudge(embedding)
+model = NeurJudge(embeddings)
 model = model.to(device)
 
 data_all = []
-f = open('./train.json','r')
+
+f = open(trainset_path,'r')
 
 for index,line in enumerate(f):
     data_all.append(line)
@@ -38,7 +46,7 @@ for index,line in enumerate(f):
 random.shuffle(data_all)
 
 print(len(data_all))
-dataloader = DataLoader(data_all, batch_size = 64, shuffle=False, num_workers=0, drop_last=False)
+dataloader = DataLoader(data_all, batch_size = batch_size, shuffle=True, num_workers=0, drop_last=False)
 criterion = nn.CrossEntropyLoss()
 
 learning_rate = 1e-3
@@ -50,12 +58,24 @@ legals,legals_len,arts,arts_sent_lent,charge_tong2id,id2charge_tong,art2id,id2ar
 legals,legals_len,arts,arts_sent_lent = legals.to(device),legals_len.to(device),arts.to(device),arts_sent_lent.to(device)
 num_epoch = 16
 global_step = 0
+
+def save_embeddings(model):
+    emb = model.embs.weight.data
+    emb = emb.cpu().numpy()
+    np.savetxt("logs/laic/embeddings/emb.txt",emb)
+
 for epoch in range(num_epoch):
     tr_loss = 0
     nb_tr_examples, nb_tr_steps = 0, 0
-    logger.info("Trianing Epoch: {}/{}".format(epoch+1, int(num_epoch)))
-    for step,batch in enumerate(tqdm(dataloader)):
-       
+    logger.info("Training Epoch: {}/{}".format(epoch+1, int(num_epoch)))
+
+    # save_embeddings(model)
+    # PATH = model_save_dir+'_neural_judge_'+str(epoch)
+    # torch.save(model.state_dict(), PATH)
+    # do_test('_neural_judge_'+str(epoch))
+
+    tq = tqdm(dataloader)
+    for step,batch in enumerate(tq):
         global_step += 1
         nb_tr_steps += 1
         model.train()
@@ -71,17 +91,22 @@ for epoch in range(num_epoch):
         sent_lent = sent_lent.to(device)
         charge_out,article_out,time_out = model(legals,legals_len,arts,arts_sent_lent,charge_tong2id,id2charge_tong,art2id,id2art,documents,sent_lent,process,device)
         
-        loss_charge = criterion(charge_out,charge_label)
-        loss_art = criterion(article_out,article_label)
-        loss_time = criterion(time_out,time_label)
+        loss_charge = nn.CrossEntropyLoss()(charge_out,charge_label)
+        loss_art = nn.CrossEntropyLoss()(article_out,article_label)
+        loss_time = nn.L1Loss()(time_out.squeeze(),time_label.squeeze())
 
         loss = ( loss_charge + loss_art + loss_time )/3
-        tr_loss+=loss.item()
+        tr_loss+=loss_time.item()
         loss.backward()
         optimizer.step()
 
-        if global_step%1000 == 0:
-            logger.info("Training loss: {}, global step: {}".format(tr_loss/nb_tr_steps, global_step))
-    PATH = './_neural_judge_'+str(epoch)
+        tq.set_postfix(loss_term=loss_time.item())
+        # if global_step%1000 == 0:
+        #     logger.info("Training loss: {}, global step: {}".format(tr_loss/nb_tr_steps, global_step))
+    save_embeddings(model)
+    PATH = model_save_dir+'_neural_judge_'+str(epoch)
     torch.save(model.state_dict(), PATH)
+
+    do_test('_neural_judge_'+str(epoch))
+
 

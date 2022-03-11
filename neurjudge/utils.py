@@ -1,19 +1,22 @@
 import json
 import torch
+import jieba
+
+
 class Data_Process():
     def __init__(self):
-        self.word2id = json.load(open('./word2id.json', "r"))
-        self.charge2id = json.load(open('./charge2id.json'))
-        self.article2id = json.load(open('./article2id.json'))
-        self.time2id = json.load(open('./time2id.json'))
+        self.word2id = json.load(open('data/laic/word2id.json', "r"))
+        self.charge2id = json.load(open('data/charge2id.json'))
+        self.article2id = json.load(open('data/article2id.json'))
+        self.time2id = json.load(open('data/time2id.json'))
         self.symbol = [",", ".", "?", "\"", "”", "。", "？", "","，",",","、","”"]
         self.last_symbol = ["?", "。", "？"]
-        self.charge2detail = json.load(open('./charge_details.json','r'))
+        self.charge2detail = json.load(open('data/charge_details.json','r'))
         self.sent_max_len = 200
-        self.law = json.load(open('./law.json'))
+        self.law = json.load(open('data/law.json'))
     def transform(self, word):
         if not (word in self.word2id.keys()):
-            return self.word2id["UNK"]
+            return self.word2id["[UNK]"]
         else:
             return self.word2id[word]
     
@@ -110,8 +113,8 @@ class Data_Process():
     
 
     def get_graph(self):
-        charge_tong = json.load(open('./charge_tong.json'))
-        art_tong = json.load(open('./art_tong.json'))
+        charge_tong = json.load(open('data/charge_tong.json'))
+        art_tong = json.load(open('data/art_tong.json'))
         charge_tong2id = {}
         id2charge_tong = {}
         legals = []
@@ -146,24 +149,27 @@ class Data_Process():
         for index,line in enumerate(data):
             line = json.loads(line)
             fact = line['fact']
-            charge = line['charge']
-            article = line['article']
-            if line['meta']['term_of_imprisonment']['death_penalty'] == True or line['meta']['term_of_imprisonment']['life_imprisonment'] == True:
-                time_labels = 0
-            else:
-                time_labels = self.time2id[str(line['meta']['term_of_imprisonment']['imprisonment'])]
-  
-            charge_label.append(self.charge2id[charge[0]])
-            article_label.append(self.article2id[str(article[0])])
+            charge = line['meta']['accusation']
+            article = line['meta']['relevant_articles']
+            # if line['meta']['term_of_imprisonment']['death_penalty'] == True or line['meta']['term_of_imprisonment']['life_imprisonment'] == True:
+            #     time_labels = 0
+            # else:
+            # time_labels = self.time2id[str(line['meta']['term_of_imprisonment']['imprisonment'])]
+            time_labels = int(line['meta']['term_of_imprisonment']['imprisonment'])
+            cur_charge = charge[0].replace("[","").replace("]","")
 
+            # if cur_charge not in self.charge2detail.keys():
+            #     continue
+            
+            charge_label.append(self.charge2id[cur_charge])
+            article_label.append(self.article2id[str(article[0])])
             
             time_label.append(int(time_labels))
-
             fact_all.append(self.parse(fact))
 
         article_label = torch.tensor(article_label,dtype=torch.long)
         charge_label = torch.tensor(charge_label,dtype=torch.long)
-        time_label = torch.tensor(time_label,dtype=torch.long)
+        time_label = torch.tensor(time_label,dtype=torch.float)
 
         documents,sent_lent = self.seq2tensor(fact_all,max_len=350)
         return charge_label,article_label,time_label,documents,sent_lent
