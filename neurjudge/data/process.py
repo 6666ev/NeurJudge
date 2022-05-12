@@ -3,21 +3,66 @@ from calendar import c
 import json
 import jieba
 from tqdm import tqdm
-
+import pandas as pd
 
 def getcharge2id(type="charge"):
     charges = set()
-    with open("cail/processed/train.json") as f:
+    with open("cail_small_sc/train.json") as f:
         for line in f.readlines():
             line = json.loads(line)
 
             if type=="charge":
-                charge = line['meta']['accusation'][0].replace("[","").replace("]","")
+                # charge = line['meta']['accusation'][0].replace("[","").replace("]","")
+                charge = line['meta']['accusation'][0]
                 charges.add(charge)
             elif type=="article":
                 article = line['meta']['relevant_articles'][0]
                 article = str(article)
                 charges.add(article)
+
+    with open("cail_small_sc/valid.json") as f:
+        for line in f.readlines():
+            line = json.loads(line)
+
+            if type=="charge":
+                # charge = line['meta']['accusation'][0].replace("[","").replace("]","")
+                charge = line['meta']['accusation'][0]
+                charges.add(charge)
+            elif type=="article":
+                article = line['meta']['relevant_articles'][0]
+                article = str(article)
+                charges.add(article)
+
+    with open("cail_small_sc/test.json") as f:
+        for line in f.readlines():
+            line = json.loads(line)
+            if type=="charge":
+                # charge = line['meta']['accusation'][0].replace("[","").replace("]","")
+                charge = line['meta']['accusation'][0]
+                charges.add(charge)
+            elif type=="article":
+                article = line['meta']['relevant_articles'][0]
+                article = str(article)
+                charges.add(article)
+
+    charge2id = {}
+    id2charge = {}
+    idx = 0
+    for c in charges:
+        charge2id[c] = idx
+        id2charge[str(idx)] = c
+        idx += 1
+    with open("{}2id.json".format(type), "w") as f:
+        json.dump(charge2id, f, ensure_ascii=False)
+    with open("id2{}.json".format(type), "w") as f:
+        json.dump(id2charge, f, ensure_ascii=False)
+
+
+def get_csv2id(type="charge"):
+    charges = set()
+    path = "cail_small_sc/cail_small_sc2.csv"
+    df = pd.read_csv(path)
+    charges = df["charge"].value_counts().index
 
     charge2id = {}
     id2charge = {}
@@ -89,7 +134,7 @@ def gettime2id():
     # print(new_time2id)
 
 
-# getcharge2id("charge")
-# getcharge2id("article")
+getcharge2id("charge")
+getcharge2id("article")
 
-getword2id()
+# getword2id()
